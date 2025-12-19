@@ -27,7 +27,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                     i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
                 );
             }
-            return [...prev, { ...item, quantity: 1 }];
+            return [...prev, { ...item, quantity: 1, cartId: self.crypto.randomUUID() }];
         });
     };
 

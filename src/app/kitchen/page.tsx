@@ -11,8 +11,7 @@ export default function KitchenPage() {
 
     useEffect(() => {
         const unsubscribe = subscribeToOrders((allOrders) => {
-            // Filter only pending/preparing orders
-            const active = allOrders.filter(o => o.status === 'pending' || o.status === 'preparing')
+            const active = allOrders.filter(o => o.status !== 'completed') // Show all active states
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             setOrders(active);
         });
@@ -20,9 +19,8 @@ export default function KitchenPage() {
         return () => unsubscribe();
     }, []);
 
-    const handleComplete = async (orderId: string) => {
-        await updateOrderStatus(orderId, 'completed');
-        // Optimistic update handled by verification/subscription, but we can't fully rely on it being instant in mock mode without the event loop
+    const handleStatusUpdate = async (orderId: string, status: Order['status']) => {
+        await updateOrderStatus(orderId, status);
     };
 
     return (
@@ -38,13 +36,19 @@ export default function KitchenPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-muted-foreground px-3 py-1 bg-muted rounded-full animate-pulse">
-                        ● Live Updates
+                    <div className="flex items-center gap-2 text-xs font-semibold">
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> New</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Cooking</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> &gt; 10m</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> &gt; 20m</span>
+                    </div>
+                    <span className="text-sm font-medium text-muted-foreground px-3 py-1 bg-muted rounded-full animate-pulse border border-border">
+                        ● Live
                     </span>
                 </div>
             </header>
 
-            <main className="flex-1 p-6 overflow-y-auto">
+            <main className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
                 {orders.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-4 opacity-50">
                         <ListChecks className="w-24 h-24 stroke-1" />
@@ -56,7 +60,7 @@ export default function KitchenPage() {
                             <KitchenOrderCard
                                 key={order.id}
                                 order={order}
-                                onComplete={handleComplete}
+                                onStatusUpdate={handleStatusUpdate}
                             />
                         ))}
                     </div>

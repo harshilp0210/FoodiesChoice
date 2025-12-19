@@ -1,11 +1,42 @@
 "use client";
 
-import { BarChart3, TrendingUp, Calendar, ArrowUpRight } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, ArrowUpRight, RefreshCw, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
 
 export default function ReportsPage() {
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [lastSync, setLastSync] = useState<string | null>(null);
+
+    const handleSync = () => {
+        setIsSyncing(true);
+        // Simulate API delay
+        setTimeout(() => {
+            setIsSyncing(false);
+            setLastSync(new Date().toLocaleTimeString());
+            alert("Daily Sales synced to QuickBooks successfully!");
+        }, 2000);
+    };
+
     return (
         <div className="space-y-8">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Performance Reports</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Performance Reports</h2>
+                <div className="flex items-center gap-3">
+                    {lastSync && (
+                        <span className="text-xs text-green-600 font-medium flex items-center gap-1 bg-green-50 px-2 py-1 rounded-full">
+                            <CheckCircle className="w-3 h-3" /> Synced at {lastSync}
+                        </span>
+                    )}
+                    <button
+                        onClick={handleSync}
+                        disabled={isSyncing}
+                        className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-all font-medium text-sm"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Syncing...' : 'Sync Daily Sales'}
+                    </button>
+                </div>
+            </div>
 
             {/* Simulated Chart Container */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">

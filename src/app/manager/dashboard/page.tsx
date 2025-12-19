@@ -1,6 +1,7 @@
 "use client";
 
 import { DollarSign, ShoppingBag, TrendingUp, AlertTriangle } from 'lucide-react';
+import LowStockAlert from '@/components/dashboard/LowStockAlert';
 
 const stats = [
     { label: 'Total Revenue', value: '$2,456.00', icon: DollarSign, trend: '+12.5%', color: 'bg-green-500/10 text-green-600' },
@@ -59,26 +60,9 @@ export default function ManagerDashboard() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col">
                     <h3 className="text-lg font-bold text-slate-800 mb-4">Stock Alerts</h3>
-                    <div className="space-y-4">
-                        {[
-                            { item: 'Tomatoes', status: 'Critical', stock: '2 kg left' },
-                            { item: 'Mozzarella', status: 'Low', stock: '5 packs left' },
-                            { item: 'Basil', status: 'Warning', stock: 'Expiring soon' },
-                        ].map((alert, i) => (
-                            <div key={i} className="flex items-center gap-4 p-3 bg-red-50/50 rounded-lg border border-red-100">
-                                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
-                                <div className="flex-1">
-                                    <h4 className="font-semibold text-red-900">{alert.item}</h4>
-                                    <p className="text-xs text-red-600">{alert.stock}</p>
-                                </div>
-                                <span className="text-xs font-bold bg-white text-red-600 px-2 py-1 rounded border border-red-200">
-                                    {alert.status}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+                    <LowStockAlert />
                 </div>
             </div>
         </div>

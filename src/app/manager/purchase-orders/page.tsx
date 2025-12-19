@@ -58,6 +58,18 @@ export default function PurchaseOrdersPage() {
         setIsFormOpen(false);
         setCart([]);
         setSelectedVendor('');
+        setIsFormOpen(false);
+        setCart([]);
+        setSelectedVendor('');
+    };
+
+    const handleExport = async (po: PurchaseOrder) => {
+        if (confirm('Export this PO to xtraCHEF?')) {
+            // Simulate API call
+            const updated = savePurchaseOrder({ ...po, synced: true, status: 'Ordered' });
+            setOrders(updated);
+            alert('Purchase Order exported successfully!');
+        }
     };
 
     return (
@@ -83,6 +95,7 @@ export default function PurchaseOrdersPage() {
                             <th className="px-6 py-4">Status</th>
                             <th className="px-6 py-4">Date</th>
                             <th className="px-6 py-4 text-right">Total Cost</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -97,6 +110,20 @@ export default function PurchaseOrdersPage() {
                                     </td>
                                     <td className="px-6 py-4">{new Date(po.created_at).toLocaleDateString()}</td>
                                     <td className="px-6 py-4 text-right font-bold">${po.totalCost.toFixed(2)}</td>
+                                    <td className="px-6 py-4 text-right">
+                                        {po.synced ? (
+                                            <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100">
+                                                <CheckCircle className="w-3 h-3" /> Synced
+                                            </span>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleExport(po)}
+                                                className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                            >
+                                                Export to Accounting
+                                            </button>
+                                        )}
+                                    </td>
                                 </tr>
                             );
                         })}

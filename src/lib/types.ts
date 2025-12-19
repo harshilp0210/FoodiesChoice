@@ -6,6 +6,11 @@ export interface MenuItem {
     price: number;
     description: string;
     image?: string;
+    available: boolean;
+    recipe?: {
+        inventoryItemId: string;
+        quantity: number;
+    }[];
 }
 
 export interface CartItem extends MenuItem {
@@ -21,6 +26,10 @@ export interface Order {
     total: number;
     items: CartItem[];
     payment_method: string;
+    tableId?: string;
+    customerName?: string; // For online/takeout orders
+    customerPhone?: string;
+    orderType?: 'dine-in' | 'pickup' | 'delivery';
 }
 
 export interface Category {
@@ -34,6 +43,7 @@ export interface InventoryItem {
     quantity: number;
     unit: string; // e.g., 'kg', 'packs', 'liters'
     threshold: number; // Low stock alert level
+    costPerUnit?: number; // Cost price per unit
     category: string;
 }
 
@@ -65,5 +75,27 @@ export interface PurchaseOrder {
     }[];
     totalCost: number;
     status: 'Pending' | 'Ordered' | 'Received';
+    synced?: boolean;
     created_at: string;
+}
+
+export type TableStatus = 'available' | 'occupied' | 'billed' | 'cleaning';
+
+export interface Table {
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    shape: 'rectangle' | 'circle';
+    seats: number;
+    status: TableStatus;
+    currentOrderId?: string;
+}
+
+export interface Area {
+    id: string;
+    name: string;
+    tables: Table[];
 }

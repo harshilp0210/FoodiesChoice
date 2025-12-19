@@ -47,6 +47,7 @@ export const getMenuData = async (): Promise<Category[]> => {
             price: price || 0,
             description: row['Notes']?.trim() || '',
             image,
+            available: true,
         });
     });
 

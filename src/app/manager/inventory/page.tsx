@@ -49,6 +49,7 @@ export default function InventoryPage() {
             quantity: Number(formData.quantity) || 0,
             unit: formData.unit || 'units',
             threshold: Number(formData.threshold) || 0,
+            costPerUnit: Number(formData.costPerUnit) || 0,
             category: formData.category || 'General',
         };
         const updated = updateInventoryItem(newItem);
@@ -81,6 +82,7 @@ export default function InventoryPage() {
                             <th className="px-6 py-4">Item Name</th>
                             <th className="px-6 py-4">Category</th>
                             <th className="px-6 py-4">Quantity</th>
+                            <th className="px-6 py-4">Cost/Unit</th>
                             <th className="px-6 py-4">Status</th>
                             <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
@@ -101,6 +103,9 @@ export default function InventoryPage() {
                                         <td className="px-6 py-4 text-slate-500">{item.category}</td>
                                         <td className="px-6 py-4 font-mono text-slate-700">
                                             {item.quantity} {item.unit}
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-slate-700">
+                                            ${(item.costPerUnit || 0).toFixed(2)}
                                         </td>
                                         <td className="px-6 py-4">
                                             {isLow ? (
@@ -198,6 +203,16 @@ export default function InventoryPage() {
                                         onChange={e => setFormData({ ...formData, threshold: Number(e.target.value) })}
                                     />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Cost Per Unit ($)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white text-slate-900 placeholder:text-slate-400"
+                                    value={formData.costPerUnit || ''}
+                                    onChange={e => setFormData({ ...formData, costPerUnit: Number(e.target.value) })}
+                                />
                             </div>
                             <div className="pt-4 flex justify-end gap-3">
                                 <button

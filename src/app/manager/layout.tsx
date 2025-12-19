@@ -18,10 +18,13 @@ import { cn } from '@/lib/utils';
 
 const sidebarItems = [
     { name: 'Dashboard', href: '/manager/dashboard', icon: LayoutDashboard },
+    { name: 'Start KDS Mode', href: '/kitchen', icon: ClipboardList },
     { name: 'Inventory', href: '/manager/inventory', icon: Package },
     { name: 'Employees', href: '/manager/employees', icon: Users },
+    { name: 'Menu & 86', href: '/manager/menu', icon: FileText }, // Using FileText or similar
     { name: 'Vendors', href: '/manager/vendors', icon: Truck },
     { name: 'Purchase Orders', href: '/manager/purchase-orders', icon: ClipboardList },
+    { name: 'Tables & Floor', href: '/manager/floor-plan', icon: Users }, // Using Users icon as placeholder or suggest Grid/Layout
     { name: 'Deals/Offers', href: '/manager/deals', icon: Tags },
     { name: 'Reporting', href: '/manager/reports', icon: FileText },
 ];
@@ -49,7 +52,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
     }
 
     return (
-        <div className="flex h-screen w-screen bg-slate-50">
+        <div className="flex h-screen w-screen bg-slate-50 text-slate-900">
             {/* Sidebar */}
             <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shrink-0 transition-all duration-300">
                 <div className="h-16 flex items-center px-6 border-b border-white/10">

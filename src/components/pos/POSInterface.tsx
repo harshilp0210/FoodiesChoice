@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Category } from '@/lib/types';
+import { Category, Area, Table } from '@/lib/types';
 import CategoryTabs from './CategoryTabs';
 import MenuGrid from './MenuGrid';
 import CartSidebar from './CartSidebar';
-import { saveOrder } from '@/lib/supabase';
+import { saveOrder, getLayout, syncOrders, getOfflineQueue } from '@/lib/supabase';
 import { syncTransactionToEposNow } from '@/lib/epos-now';
 import { useCart } from '@/context/CartContext';
 import Receipt from '@/components/pos/Receipt';
 import { Order } from '@/lib/types';
+import TableGrid from '@/components/floor-plan/TableGrid';
+import { Grid, Wifi, WifiOff, RefreshCw, ChefHat, Monitor } from 'lucide-react';
 
 interface POSInterfaceProps {
     categories: Category[];
@@ -22,44 +24,93 @@ export default function POSInterface({ categories }: POSInterfaceProps) {
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [lastOrder, setLastOrder] = useState<Order | null>(null);
 
+    // Table Management State
+    const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+    const [layout, setLayout] = useState<Area[]>([]);
+    const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+
+    // Offline State
+    const [isOnline, setIsOnline] = useState(true);
+    const [offlineQueueSize, setOfflineQueueSize] = useState(0);
+
     useEffect(() => {
         setCurrentDate(new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }));
+        setLayout(getLayout());
+        setOfflineQueueSize(getOfflineQueue().length);
+        setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Poll for queue size updates (simple way)
+        const interval = setInterval(() => {
+            setOfflineQueueSize(getOfflineQueue().length);
+        }, 2000);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            clearInterval(interval);
+        };
     }, []);
+
+    const handleSync = async () => {
+        const syncedCount = await syncOrders();
+        setOfflineQueueSize(0);
+        alert(`Synced ${syncedCount} orders to server.`);
+    };
 
     const allItems = categories.flatMap(c => c.items);
     const activeItems = searchQuery
         ? allItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()) || item.category.toLowerCase().includes(searchQuery.toLowerCase()))
         : categories.find(c => c.name === activeCategory)?.items || [];
 
+    const handleTableSelect = (table: Table) => {
+        if (table.status !== 'available' && table.status !== 'occupied') {
+            // Optional: Allow selecting occupied tables to add to order? For now, just allow selecting.
+        }
+        setSelectedTable(table);
+        setIsTableModalOpen(false);
+    };
+
     const handleCheckout = async () => {
         if (cart.length === 0) return;
 
+        // Ensure table is selected if required (Optional: could enforce it)
+        // if (!selectedTable) { alert("Please select a table"); return; }
+
         // Save order to Mock Backend
-        const order = await saveOrder(cart, total, 'cash'); // Defaulting to cash for now
+        const order = await saveOrder(cart, total, 'cash', selectedTable?.id); // Defaulting to cash for now
 
         if (order) {
             setLastOrder(order);
 
             // Sync to Epos Now (Fire and Forget or Await based on preference)
-            // We await here to show the user it's processing, but in real-life might be background.
             console.log("Syncing to Epos Now...");
-            const eposResult = await syncTransactionToEposNow({
-                date: order.created_at,
-                totalAmount: order.total,
-                paymentMethod: order.payment_method,
-                items: cart.map(item => ({
-                    name: item.name,
-                    quantity: item.quantity,
-                    price: item.price,
-                    vatRate: 0.10 // Hardcoded for now matches tax calc
-                }))
-            });
-            console.log("Epos Now Result:", eposResult);
+            if (isOnline) {
+                // Only sync to external API if online
+                const eposResult = await syncTransactionToEposNow({
+                    date: order.created_at,
+                    totalAmount: order.total,
+                    paymentMethod: order.payment_method,
+                    items: cart.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        vatRate: 0.10 // Hardcoded for now matches tax calc
+                    }))
+                });
+                console.log("Epos Now Result:", eposResult);
+            }
 
             // Wait for state update then print
             setTimeout(() => {
                 window.print();
                 clearCart();
+                setSelectedTable(null); // Reset table after order
             }, 100);
         } else {
             alert('Failed to save order');
@@ -86,6 +137,29 @@ export default function POSInterface({ categories }: POSInterfaceProps) {
                                 >
                                     Open Display
                                 </button>
+                                <button
+                                    onClick={() => window.open('/kitchen', 'KitchenDisplay', 'width=1024,height=768')}
+                                    className="text-[10px] bg-orange-100 hover:bg-orange-200 text-orange-700 px-2 py-0.5 rounded-full transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                    <ChefHat className="w-3 h-3" /> Kitchen
+                                </button>
+                                {isOnline ? (
+                                    <span className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                                        <Wifi className="w-3 h-3" /> Online
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1 text-[10px] text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100 font-bold">
+                                        <WifiOff className="w-3 h-3" /> Offline
+                                    </span>
+                                )}
+                                {offlineQueueSize > 0 && (
+                                    <button
+                                        onClick={handleSync}
+                                        className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 animate-pulse hover:bg-amber-100"
+                                    >
+                                        <RefreshCw className="w-3 h-3" /> Sync ({offlineQueueSize})
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -101,8 +175,23 @@ export default function POSInterface({ categories }: POSInterfaceProps) {
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
                     </div>
 
-                    <div className="text-sm font-medium text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border border-border/50 shrink-0">
-                        {currentDate}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => { setLayout(getLayout()); setIsTableModalOpen(true); }}
+                            className={`
+                                flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm
+                                ${selectedTable
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200'
+                                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}
+                            `}
+                        >
+                            <Grid className="w-4 h-4" />
+                            {selectedTable ? `Table ${selectedTable.label}` : 'Dine In'}
+                        </button>
+
+                        <div className="text-sm font-medium text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border border-border/50 shrink-0">
+                            {currentDate}
+                        </div>
                     </div>
                 </header>
 
@@ -129,6 +218,15 @@ export default function POSInterface({ categories }: POSInterfaceProps) {
             </div>
 
             <Receipt order={lastOrder} />
+
+            {/* Table Selection Modal */}
+            {isTableModalOpen && (
+                <TableGrid
+                    layout={layout}
+                    onSelectTable={handleTableSelect}
+                    onClose={() => setIsTableModalOpen(false)}
+                />
+            )}
         </div>
     );
 }

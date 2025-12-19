@@ -1,4 +1,4 @@
-import { Order, CartItem, InventoryItem, Vendor, Employee, PurchaseOrder } from './types';
+import { Order, CartItem, InventoryItem, Vendor, Employee, PurchaseOrder, MenuItem } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Mock Supabase Client for "Mock Mode"
@@ -6,22 +6,107 @@ import { v4 as uuidv4 } from 'uuid';
 
 const STORAGE_KEY = 'foodies_pos_orders';
 
-export const saveOrder = async (items: CartItem[], total: number, paymentMethod: string): Promise<Order | null> => {
+// --- Offline Sync Mock ---
+const OFFLINE_QUEUE_KEY = 'foodies_pos_offline_queue';
+
+export const getOfflineQueue = (): Order[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    return stored ? JSON.parse(stored) : [];
+};
+
+export const syncOrders = async (): Promise<number> => {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return 0;
+
+    // Move from Offline Queue to Main Storage
+    const existingOrders = getOrdersLocal();
+    const newOrders = [...queue, ...existingOrders];
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newOrders));
+    localStorage.removeItem(OFFLINE_QUEUE_KEY);
+
+    // Dispatch events
+    window.dispatchEvent(new StorageEvent('storage', {
+        key: STORAGE_KEY,
+        newValue: JSON.stringify(newOrders)
+    }));
+
+    return queue.length;
+};
+
+export const saveOrder = async (
+    itemsOrOrder: CartItem[] | Order,
+    total?: number,
+    paymentMethod?: string,
+    tableId?: string
+): Promise<Order | null> => {
     try {
-        const newOrder: Order = {
-            id: uuidv4(),
-            created_at: new Date().toISOString(),
-            status: 'pending',
-            total,
-            items,
-            payment_method: paymentMethod,
-        };
+        let newOrder: Order;
+
+        if (Array.isArray(itemsOrOrder)) {
+            // Legacy Usage (POS)
+            newOrder = {
+                id: uuidv4(),
+                created_at: new Date().toISOString(),
+                status: 'pending',
+                total: total || 0,
+                items: itemsOrOrder,
+                payment_method: paymentMethod || 'cash',
+                tableId,
+            };
+        } else {
+            // New Usage (Online Order object passed directly)
+            newOrder = itemsOrOrder;
+        }
+
+        // Offline Detection
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            console.log("Offline! saving to queue.");
+            const queue = getOfflineQueue();
+            queue.push(newOrder);
+            localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+            return newOrder;
+        }
 
         // Simulate network delay
         await new Promise(resolve => setTimeout(resolve, 500));
 
         const existingOrders = getOrdersLocal();
         const updatedOrders = [newOrder, ...existingOrders];
+
+        // Deduct Inventory based on Recipes
+        const inventory = getInventory();
+        let inventoryUpdated = false;
+
+        newOrder.items.forEach(item => {
+            if (item.recipe && item.recipe.length > 0) {
+                item.recipe.forEach(ingredient => {
+                    const invItem = inventory.find(i => i.id === ingredient.inventoryItemId);
+                    if (invItem) {
+                        invItem.quantity = Math.max(0, invItem.quantity - (ingredient.quantity * item.quantity));
+                        inventoryUpdated = true;
+                    }
+                });
+            }
+        });
+
+        if (inventoryUpdated) {
+            localStorage.setItem(INVENTORY_KEY, JSON.stringify(inventory));
+        }
+
+        // Update table status if applicable
+        if (tableId) {
+            // Find which area and table this belongs to
+            const layout = getLayout();
+            for (const area of layout) {
+                const table = area.tables.find(t => t.id === tableId);
+                if (table) {
+                    updateTableStatus(area.id, table.id, 'occupied');
+                    break;
+                }
+            }
+        }
 
         if (typeof window !== 'undefined') {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOrders));
@@ -30,6 +115,11 @@ export const saveOrder = async (items: CartItem[], total: number, paymentMethod:
                 key: STORAGE_KEY,
                 newValue: JSON.stringify(updatedOrders)
             }));
+
+            if (inventoryUpdated) {
+                // Notify inventory updated
+                window.dispatchEvent(new Event('inventory_updated'));
+            }
         }
 
         return newOrder;
@@ -231,4 +321,71 @@ export const savePurchaseOrder = (po: PurchaseOrder) => {
     }
     localStorage.setItem(PO_KEY, JSON.stringify(newList));
     return newList;
+};
+
+// --- Mock Floor Plan ---
+import { Area, TableStatus } from './types';
+
+export const getLayout = (): Area[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem('restaurant_layout');
+    if (stored) return JSON.parse(stored);
+
+    // Default layout if empty
+    return [
+        {
+            id: 'main-hall',
+            name: 'Main Dining',
+            tables: [
+                { id: 't1', label: '1', x: 20, y: 20, width: 80, height: 80, shape: 'rectangle', seats: 4, status: 'available' },
+                { id: 't2', label: '2', x: 120, y: 20, width: 80, height: 80, shape: 'rectangle', seats: 4, status: 'occupied' },
+            ]
+        }
+    ];
+};
+
+export const saveLayout = (layout: Area[]) => {
+    localStorage.setItem('restaurant_layout', JSON.stringify(layout));
+};
+
+export const updateTableStatus = (areaId: string, tableId: string, status: TableStatus) => {
+    const layout = getLayout();
+    const area = layout.find(a => a.id === areaId);
+    if (area) {
+        const table = area.tables.find(t => t.id === tableId);
+        if (table) {
+            table.status = status;
+            saveLayout(layout);
+        }
+    }
+    return layout;
+};
+
+// --- Menu Management Mock ---
+const MENU_OVERRIDES_KEY = 'foodies_pos_menu_overrides';
+
+export interface MenuOverride {
+    id: string;
+    available?: boolean;
+    price?: number;
+    recipe?: {
+        inventoryItemId: string;
+        quantity: number;
+    }[];
+}
+
+export const getMenuOverrides = (): Record<string, MenuOverride> => {
+    if (typeof window === 'undefined') return {};
+    const stored = localStorage.getItem(MENU_OVERRIDES_KEY);
+    return stored ? JSON.parse(stored) : {};
+};
+
+export const updateMenuItemOverride = (id: string, updates: Partial<MenuOverride>) => {
+    const overrides = getMenuOverrides();
+    overrides[id] = { ...(overrides[id] || { id }), ...updates };
+    localStorage.setItem(MENU_OVERRIDES_KEY, JSON.stringify(overrides));
+
+    // Notify components
+    window.dispatchEvent(new CustomEvent('menu_updated'));
+    return overrides;
 };
